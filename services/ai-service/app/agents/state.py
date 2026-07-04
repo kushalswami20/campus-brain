@@ -26,6 +26,12 @@ class RagState(TypedDict, total=False):
     query: str
     filters: dict[str, Any] | None
     top_k: int
+    # Prior conversation turns ({role, content}); most recent last.
+    history: list[dict[str, Any]]
+
+    # Contextualizer
+    # The query the user actually typed, before follow-up resolution.
+    original_query: str
 
     # Planner
     subqueries: list[str]

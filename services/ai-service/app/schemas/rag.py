@@ -22,21 +22,23 @@ class RetrievalFilters(BaseModel):
     unit: str | None = None
 
 
+class ChatTurn(BaseModel):
+    """One prior message in the conversation, for follow-up resolution."""
+
+    role: str = Field(..., pattern="^(user|assistant|system)$")
+    content: str
+
+
 class RagQueryRequest(BaseModel):
     request_id: str = Field(..., description="Correlation id from the API edge.")
     user_id: str
     query: str = Field(..., min_length=1, max_length=8_000)
     chat_id: str | None = None
-    # Prior turns for conversational context (role/content pairs).
+    # Prior turns for conversational context (most recent last).
     history: list[ChatTurn] = Field(default_factory=list)
     filters: RetrievalFilters | None = None
     top_k: int | None = Field(default=None, ge=1, le=50)
     stream: bool = True
-
-
-class ChatTurn(BaseModel):
-    role: str = Field(..., pattern="^(user|assistant|system)$")
-    content: str
 
 
 class Citation(BaseModel):

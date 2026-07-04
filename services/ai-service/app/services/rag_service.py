@@ -90,6 +90,7 @@ class RagService:
             query=request.query,
             filters=self._build_filter(request.filters),
             top_k=request.top_k or self._settings.default_top_k,
+            history=[turn.model_dump() for turn in request.history],
         )
 
     def _usage(self, result: PipelineResult) -> TokenUsage:

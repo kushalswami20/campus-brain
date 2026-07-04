@@ -23,6 +23,7 @@ from app.services.providers.vector_store import VectorStore
 
 from .answer_generator import AnswerGeneratorAgent
 from .citation import CitationAgent
+from .contextualizer import ContextualizerAgent
 from .hybrid_search import HybridSearchAgent
 from .planner import PlannerAgent
 from .reasoning import ReasoningAgent
@@ -66,6 +67,7 @@ class RagPipeline:
         query: str,
         filters: dict | None,
         top_k: int,
+        history: list[dict] | None = None,
     ) -> PipelineResult:
         final: RagState = self._graph.invoke(
             {
@@ -73,6 +75,7 @@ class RagPipeline:
                 "query": query,
                 "filters": filters,
                 "top_k": top_k,
+                "history": history or [],
                 "iterations": 0,
                 "trace": [],
             }
@@ -99,6 +102,7 @@ class RagPipeline:
 
         # Node names must not collide with state keys (LangGraph constraint), so
         # the verification/reflection nodes carry an "_agent" suffix.
+        graph.add_node("contextualizer", ContextualizerAgent())
         graph.add_node("planner", PlannerAgent())
         graph.add_node("retriever", RetrieverAgent(embeddings, vector_store))
         graph.add_node("hybrid_search", HybridSearchAgent(keyword_index))
@@ -111,7 +115,8 @@ class RagPipeline:
         graph.add_node("citation_agent", CitationAgent())
         graph.add_node("reflection_agent", ReflectionAgent())
 
-        graph.set_entry_point("planner")
+        graph.set_entry_point("contextualizer")
+        graph.add_edge("contextualizer", "planner")
         graph.add_edge("planner", "retriever")
         graph.add_edge("retriever", "hybrid_search")
         graph.add_edge("hybrid_search", "reranker")

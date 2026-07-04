@@ -55,6 +55,8 @@ _INSTRUCTION_STOP = {
     "narrative", "point", "points", "bullet", "bullets", "list", "tell",
     "give", "note", "notes", "please", "kindly", "everything", "gist",
     "nutshell", "expand", "define", "definition", "meaning", "understand",
+    "more", "further", "again", "additional", "extra", "elaborately",
+    "me", "us", "my", "want", "need", "know",
 }
 # ────────────────────────────────────────────────────────────────────────────
 

@@ -8,19 +8,12 @@ candidates by true query-passage relevance, which fusion alone only approximates
 from __future__ import annotations
 
 import logging
-import math
 import re
 
 from .state import RagState, Retrieved
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 logger = logging.getLogger(__name__)
-
-
-def _sigmoid(x: float) -> float:
-    # Clamp to avoid math.exp overflow on extreme cross-encoder logits.
-    x = max(-30.0, min(30.0, x))
-    return 1.0 / (1.0 + math.exp(-x))
 
 
 class RerankerAgent:
@@ -48,18 +41,18 @@ class RerankerAgent:
                 {**c, "score": round(float(score), 6)}
                 for c, score in zip(candidates, scores, strict=True)
             ]
-            # Cross-encoder logits → probability; the best passage's probability
-            # is our relevance signal (relevant ≈ 1, off-topic ≈ 0).
-            relevance = _sigmoid(max(float(s) for s in scores))
         else:
             ranked = [
                 {**c, "score": round(self._lexical_score(query, c), 6)}
                 for c in candidates
             ]
-            # No cross-encoder: fall back to the strongest dense cosine, a more
-            # trustworthy relevance signal than lexical overlap.
-            dense = state.get("dense", [])
-            relevance = float(dense[0]["score"]) if dense else 0.0
+
+        # Relevance-gate signal = the strongest dense cosine similarity. The
+        # cross-encoder is excellent at *ordering* but its absolute scores are an
+        # unreliable relevance threshold (it under-scores valid paraphrased
+        # questions), so the gate uses the stable dense cosine instead.
+        dense = state.get("dense", [])
+        relevance = float(dense[0]["score"]) if dense else 0.0
 
         ranked.sort(key=lambda c: c["score"], reverse=True)
         return {
