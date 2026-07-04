@@ -15,7 +15,12 @@ export const envSchema = z.object({
 
   // Optional until their respective milestones.
   REDIS_URL: z.string().url().optional(),
-  AI_SERVICE_URL: z.string().url().optional(),
+
+  // AI service (Milestone 3). URL has a dev default; key optional in dev.
+  AI_SERVICE_URL: z.string().url().default('http://localhost:8000'),
+  AI_SERVICE_KEY: z.string().optional(),
+  AI_SERVICE_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+  AI_SERVICE_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
 
   // Auth (Milestone 2). Secrets must be strong; lifetimes accept vercel/ms-style strings.
   JWT_ACCESS_SECRET: z.string().min(16),

@@ -1,0 +1,10 @@
+# Runtime dependencies for the AI service skeleton (Milestone 3).
+# Heavy AI/RAG libraries (langgraph, langchain, sentence-transformers, pinecone,
+# pymupdf, rank-bm25, etc.) are added with Milestones 4/5 to keep this image lean.
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+structlog==24.4.0
+httpx==0.28.1
+python-multipart==0.0.19
