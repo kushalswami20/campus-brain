@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { apiRequest, API_URL } from '@/lib/api-client';
+import { endpoints } from '@/lib/endpoints';
 import { authStore } from '@/stores/auth-store';
 import type { DocumentItem, Paginated } from '@/lib/types';
 
@@ -13,7 +14,9 @@ export function useDocuments() {
   return useQuery({
     queryKey: ['documents'],
     queryFn: () =>
-      apiRequest<Paginated<DocumentItem>>('/api/documents?pageSize=100'),
+      apiRequest<Paginated<DocumentItem>>(
+        `${endpoints.documents.root}?pageSize=100`,
+      ),
     // Poll while anything is still processing so status updates live.
     refetchInterval: (query) => {
       const items = query.state.data?.data ?? [];
@@ -34,7 +37,7 @@ export function useUploadDocument() {
       form.append('file', input.file);
       if (input.type) form.append('type', input.type);
       const token = authStore.get().tokens?.accessToken;
-      const res = await fetch(`${API_URL}/api/documents`, {
+      const res = await fetch(`${API_URL}${endpoints.documents.root}`, {
         method: 'POST',
         headers: token ? { authorization: `Bearer ${token}` } : undefined,
         body: form,
@@ -56,7 +59,7 @@ export function useDeleteDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiRequest<void>(`/api/documents/${id}`, { method: 'DELETE' }),
+      apiRequest<void>(endpoints.documents.byId(id), { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
   });
 }

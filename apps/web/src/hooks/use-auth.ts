@@ -2,6 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api-client';
+import { endpoints } from '@/lib/endpoints';
 import { useAuthStore } from '@/stores/auth-store';
 import type { AuthResult } from '@/lib/types';
 
@@ -20,7 +21,7 @@ export function useLogin() {
   const setSession = useAuthStore((s) => s.setSession);
   return useMutation({
     mutationFn: (input: LoginInput) =>
-      apiRequest<AuthResult>('/api/auth/login', {
+      apiRequest<AuthResult>(endpoints.auth.login, {
         method: 'POST',
         body: input,
         auth: false,
@@ -33,7 +34,7 @@ export function useRegister() {
   const setSession = useAuthStore((s) => s.setSession);
   return useMutation({
     mutationFn: (input: RegisterInput) =>
-      apiRequest<AuthResult>('/api/auth/register', {
+      apiRequest<AuthResult>(endpoints.auth.register, {
         method: 'POST',
         body: input,
         auth: false,
@@ -45,7 +46,9 @@ export function useRegister() {
 export function useLogout() {
   const clear = useAuthStore((s) => s.clear);
   return async () => {
-    await apiRequest('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+    await apiRequest(endpoints.auth.logout, { method: 'POST' }).catch(
+      () => undefined,
+    );
     clear();
   };
 }

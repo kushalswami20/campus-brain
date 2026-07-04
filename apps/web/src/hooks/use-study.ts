@@ -2,6 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api-client';
+import { endpoints } from '@/lib/endpoints';
 
 export interface SummaryResult {
   summary: string;
@@ -27,7 +28,7 @@ interface GenerateInput {
 export function useGenerateSummary() {
   return useMutation({
     mutationFn: (input: GenerateInput) =>
-      apiRequest<SummaryResult>('/api/study/summary', {
+      apiRequest<SummaryResult>(endpoints.study.summary, {
         method: 'POST',
         body: input,
       }),
@@ -38,7 +39,7 @@ export function useGenerateFlashcards() {
   return useMutation({
     mutationFn: (input: GenerateInput) =>
       apiRequest<{ flashcards: Flashcard[]; grounded: boolean }>(
-        '/api/study/flashcards/generate',
+        endpoints.study.flashcardsGenerate,
         { method: 'POST', body: input },
       ),
   });
@@ -47,7 +48,7 @@ export function useGenerateFlashcards() {
 export function useSaveFlashcards() {
   return useMutation({
     mutationFn: (input: { flashcards: Flashcard[]; subject?: string }) =>
-      apiRequest<{ saved: number }>('/api/study/flashcards', {
+      apiRequest<{ saved: number }>(endpoints.study.flashcards, {
         method: 'POST',
         body: input,
       }),
@@ -58,7 +59,7 @@ export function useGenerateQuiz() {
   return useMutation({
     mutationFn: (input: GenerateInput) =>
       apiRequest<{ questions: QuizQuestion[]; grounded: boolean }>(
-        '/api/study/quiz/generate',
+        endpoints.study.quizGenerate,
         { method: 'POST', body: input },
       ),
   });
@@ -71,7 +72,7 @@ export function useSubmitQuiz() {
       answers: { questionIndex: number; selectedIndex: number }[];
     }) =>
       apiRequest<{ score: number; correct: number; total: number }>(
-        '/api/study/quiz/submit',
+        endpoints.study.quizSubmit,
         { method: 'POST', body: input },
       ),
   });

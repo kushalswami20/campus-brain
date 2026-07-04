@@ -21,7 +21,9 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  app.setGlobalPrefix('api', { exclude: ['health', 'health/ready'] });
+  app.setGlobalPrefix(config.get('API_PREFIX'), {
+    exclude: ['health', 'health/ready'],
+  });
   app.enableCors({
     origin: config.get('CORS_ORIGINS'),
     credentials: true,

@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api-client';
+import { endpoints } from '@/lib/endpoints';
 import type { Paginated } from '@/lib/types';
 
 export interface AdminOverview {
@@ -35,7 +36,7 @@ export interface AdminUser {
 export function useAdminOverview() {
   return useQuery({
     queryKey: ['admin', 'overview'],
-    queryFn: () => apiRequest<AdminOverview>('/api/admin/analytics/overview'),
+    queryFn: () => apiRequest<AdminOverview>(endpoints.admin.overview),
   });
 }
 
@@ -44,7 +45,7 @@ export function useMessagesPerDay(days = 14) {
     queryKey: ['admin', 'messages', days],
     queryFn: () =>
       apiRequest<{ date: string; count: number }[]>(
-        `/api/admin/analytics/messages?days=${days}`,
+        `${endpoints.admin.messagesPerDay}?days=${days}`,
       ),
   });
 }
@@ -54,7 +55,7 @@ export function useDocumentsByType() {
     queryKey: ['admin', 'docsByType'],
     queryFn: () =>
       apiRequest<{ type: string; count: number }[]>(
-        '/api/admin/analytics/documents-by-type',
+        endpoints.admin.documentsByType,
       ),
   });
 }
@@ -64,7 +65,7 @@ export function useAdminUsers(search: string) {
     queryKey: ['admin', 'users', search],
     queryFn: () =>
       apiRequest<Paginated<AdminUser>>(
-        `/api/admin/users?pageSize=50${search ? `&search=${encodeURIComponent(search)}` : ''}`,
+        `${endpoints.admin.users}?pageSize=50${search ? `&search=${encodeURIComponent(search)}` : ''}`,
       ),
   });
 }
@@ -73,7 +74,7 @@ export function useSetUserStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: { id: string; isActive: boolean }) =>
-      apiRequest(`/api/admin/users/${input.id}/status`, {
+      apiRequest(endpoints.admin.userStatus(input.id), {
         method: 'PATCH',
         body: { isActive: input.isActive },
       }),

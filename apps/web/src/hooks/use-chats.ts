@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api-client';
+import { endpoints } from '@/lib/endpoints';
 import type { ChatDetail, ChatSummary, Paginated } from '@/lib/types';
 
 export function useChats(search?: string) {
@@ -13,7 +14,7 @@ export function useChats(search?: string) {
     queryKey: ['chats', search ?? ''],
     queryFn: () =>
       apiRequest<Paginated<ChatSummary>>(
-        `/api/chats?pageSize=100${search ? `&search=${encodeURIComponent(search)}` : ''}`,
+        `${endpoints.chats.root}?pageSize=100${search ? `&search=${encodeURIComponent(search)}` : ''}`,
       ),
   });
 }
@@ -21,7 +22,7 @@ export function useChats(search?: string) {
 export function useChat(chatId: string | null) {
   return useQuery({
     queryKey: ['chat', chatId],
-    queryFn: () => apiRequest<ChatDetail>(`/api/chats/${chatId}`),
+    queryFn: () => apiRequest<ChatDetail>(endpoints.chats.byId(chatId!)),
     enabled: Boolean(chatId),
   });
 }
@@ -30,7 +31,7 @@ export function useCreateChat() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (title?: string) =>
-      apiRequest<ChatSummary>('/api/chats', {
+      apiRequest<ChatSummary>(endpoints.chats.root, {
         method: 'POST',
         body: { title },
       }),
@@ -46,7 +47,7 @@ export function useUpdateChat() {
       title?: string;
       isPinned?: boolean;
     }) =>
-      apiRequest<ChatSummary>(`/api/chats/${input.id}`, {
+      apiRequest<ChatSummary>(endpoints.chats.byId(input.id), {
         method: 'PATCH',
         body: { title: input.title, isPinned: input.isPinned },
       }),
@@ -58,7 +59,7 @@ export function useDeleteChat() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiRequest<void>(`/api/chats/${id}`, { method: 'DELETE' }),
+      apiRequest<void>(endpoints.chats.byId(id), { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['chats'] }),
   });
 }

@@ -10,6 +10,12 @@ export const envSchema = z.object({
     .enum(['development', 'test', 'production'])
     .default('development'),
   PORT: z.coerce.number().int().positive().default(3001),
+  // Global REST prefix, e.g. `api` → routes served under `/api/*`. Must match
+  // the web app's NEXT_PUBLIC_API_PREFIX. Leading/trailing slashes are trimmed.
+  API_PREFIX: z
+    .string()
+    .default('api')
+    .transform((value) => value.replace(/^\/+|\/+$/g, '')),
 
   DATABASE_URL: z.string().url(),
 

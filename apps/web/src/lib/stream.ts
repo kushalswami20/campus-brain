@@ -1,4 +1,5 @@
 import { API_URL } from './api-client';
+import { endpoints } from './endpoints';
 import { authStore } from '@/stores/auth-store';
 import type { Citation } from './types';
 
@@ -21,7 +22,7 @@ export async function streamChatMessage(
   signal?: AbortSignal,
 ): Promise<void> {
   const token = authStore.get().tokens?.accessToken;
-  const response = await fetch(`${API_URL}/api/chats/${chatId}/messages`, {
+  const response = await fetch(`${API_URL}${endpoints.chats.messages(chatId)}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

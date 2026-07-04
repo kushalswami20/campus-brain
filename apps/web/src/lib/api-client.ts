@@ -1,4 +1,5 @@
 import { authStore, useAuthStore } from '@/stores/auth-store';
+import { endpoints } from './endpoints';
 import type { AuthTokens } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -30,7 +31,7 @@ async function refreshTokens(): Promise<AuthTokens | null> {
 
   // Single-flight: concurrent 401s share one refresh call.
   if (!refreshPromise) {
-    refreshPromise = fetch(`${API_URL}/api/auth/refresh`, {
+    refreshPromise = fetch(`${API_URL}${endpoints.auth.refresh}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ refreshToken: current.refreshToken }),
