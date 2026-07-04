@@ -20,6 +20,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import type { PaginatedResponse } from '@/common/dto/api-response';
 import { AiService } from '../ai/ai.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { ChatsService, type ChatSummary, type MessageView } from './chats.service';
 import { SseAccumulator } from './sse-accumulator';
 import {
@@ -36,6 +37,7 @@ export class ChatsController {
   constructor(
     private readonly chats: ChatsService,
     private readonly ai: AiService,
+    private readonly analytics: AnalyticsService,
   ) {}
 
   @Post()
@@ -158,6 +160,17 @@ export class ChatsController {
         trace: finished.trace,
         requestId,
       },
+    });
+
+    // Best-effort analytics — never blocks or fails the response.
+    void this.analytics.recordChat({
+      userId: user.userId,
+      model: (finished.usage.model as string) ?? undefined,
+      promptTokens: Number(finished.usage.prompt_tokens ?? 0),
+      completionTokens: Number(finished.usage.completion_tokens ?? 0),
+      latencyMs: finished.latencyMs,
+      grounded: finished.grounded,
+      requestId,
     });
 
     if (!clientGone) res.end();

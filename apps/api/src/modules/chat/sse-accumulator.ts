@@ -11,6 +11,7 @@ export interface AccumulatedAnswer {
   usage: Record<string, unknown>;
   grounded: boolean;
   trace: string[];
+  latencyMs: number;
   errored: boolean;
 }
 
@@ -21,6 +22,7 @@ export class SseAccumulator {
   private usage: Record<string, unknown> = {};
   private grounded = false;
   private trace: string[] = [];
+  private latencyMs = 0;
   private errored = false;
 
   /** Feed a raw chunk of SSE bytes (already decoded to string). */
@@ -42,6 +44,7 @@ export class SseAccumulator {
       usage: this.usage,
       grounded: this.grounded,
       trace: this.trace,
+      latencyMs: this.latencyMs,
       errored: this.errored,
     };
   }
@@ -77,6 +80,7 @@ export class SseAccumulator {
         this.trace = Array.isArray(parsed.trace)
           ? (parsed.trace as string[])
           : [];
+        this.latencyMs = Number(parsed.latency_ms ?? 0);
         break;
       case 'error':
         this.errored = true;
