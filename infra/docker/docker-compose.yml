@@ -1,0 +1,45 @@
+# Local development infrastructure.
+# Milestone 0: Postgres + Redis only. Application services (web, api, ai-service)
+# are added to this file as their milestones land.
+#
+# Usage (from repo root):
+#   cp .env.example .env
+#   docker compose -f infra/docker/docker-compose.yml --env-file .env up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: campusbrain-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-campusbrain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-campusbrain}
+      POSTGRES_DB: ${POSTGRES_DB:-campusbrain}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - campusbrain-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-campusbrain} -d ${POSTGRES_DB:-campusbrain}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: campusbrain-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - campusbrain-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  campusbrain-pgdata:
+  campusbrain-redisdata:
