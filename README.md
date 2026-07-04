@@ -4,7 +4,26 @@ An intelligent academic assistant for university students. Upload course materia
 PDFs, DOCX, PPTs, previous-year papers, notes, images — and get grounded, cited answers
 via an advanced multi-agent Retrieval-Augmented Generation (RAG) pipeline.
 
-> **Status:** Milestone 0 — foundation & architecture. See [docs/MILESTONES.md](docs/MILESTONES.md).
+> **Status:** Feature-complete across all three tiers (auth → ingestion → multi-agent
+> RAG → chat → study tools → admin/analytics) with CI and Docker. Runs locally with no
+> paid keys. See [docs/MILESTONES.md](docs/MILESTONES.md).
+
+## Quickstart
+
+```bash
+cp .env.example .env
+./scripts/dev.sh          # Postgres + Redis + AI + API + web, from source
+# open http://localhost:3000
+```
+
+Or run the whole stack in Docker:
+
+```bash
+docker compose -f infra/docker/docker-compose.full.yml --env-file .env up --build
+```
+
+Full instructions: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Deploying:
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Monorepo layout
 

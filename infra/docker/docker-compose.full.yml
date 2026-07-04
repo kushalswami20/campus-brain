@@ -1,0 +1,96 @@
+# Full stack: Postgres, Redis, AI service, API, and web — built from source.
+#
+#   docker compose -f infra/docker/docker-compose.full.yml --env-file .env up --build
+#
+# Then open http://localhost:3000.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-campusbrain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-campusbrain}
+      POSTGRES_DB: ${POSTGRES_DB:-campusbrain}
+    volumes:
+      - campusbrain-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-campusbrain}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - campusbrain-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  ai-service:
+    build:
+      context: ../../services/ai-service
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      AI_REDIS_URL: redis://redis:6379/1
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PINECONE_API_KEY: ${PINECONE_API_KEY:-}
+      PINECONE_INDEX: ${PINECONE_INDEX:-campusbrain}
+      SERVICE_API_KEY: ${AI_SERVICE_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  api:
+    build:
+      context: ../../apps/api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-campusbrain}:${POSTGRES_PASSWORD:-campusbrain}@postgres:5432/${POSTGRES_DB:-campusbrain}?schema=public
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ai-service:8000
+      AI_SERVICE_KEY: ${AI_SERVICE_KEY:-}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-change-me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      UPLOAD_DIR: /app/uploads
+      CLOUDINARY_URL: ${CLOUDINARY_URL:-}
+      CORS_ORIGINS: http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
+    volumes:
+      - campusbrain-uploads:/app/uploads
+    ports:
+      - "3001:3001"
+
+  web:
+    build:
+      context: ../../apps/web
+      args:
+        # Baked at build time — must be the URL the browser uses.
+        NEXT_PUBLIC_API_URL: http://localhost:3001
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  campusbrain-pgdata:
+  campusbrain-redisdata:
+  campusbrain-uploads:
