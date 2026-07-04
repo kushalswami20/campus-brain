@@ -1,0 +1,544 @@
+// CampusBrain — PostgreSQL schema (Prisma).
+// Conventions:
+//   - cuid() primary keys named `id`.
+//   - Audit fields: createdAt, updatedAt on every row-owning table.
+//   - Soft delete: nullable `deletedAt` where records must survive referential history.
+//   - Indexes on every foreign key and on common filter/sort columns.
+//   - Enums for closed value sets to keep data honest at the DB boundary.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Enums ───────────────────────────
+
+enum RoleName {
+  STUDENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum DocumentType {
+  NOTES
+  PYQ
+  ASSIGNMENT
+  SYLLABUS
+  BOOK
+  SLIDES
+  IMAGE
+  OTHER
+}
+
+enum DocumentStatus {
+  QUEUED
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum MessageStatus {
+  PENDING
+  STREAMING
+  COMPLETE
+  ERROR
+}
+
+enum NotificationType {
+  DOCUMENT_READY
+  DOCUMENT_FAILED
+  SYSTEM
+  ANNOUNCEMENT
+}
+
+enum FeedbackTarget {
+  MESSAGE
+  DOCUMENT
+  ANSWER_QUALITY
+}
+
+enum StudyPlanStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum UsageKind {
+  CHAT
+  INGESTION
+  QUIZ
+  FLASHCARD
+  SUMMARY
+  RESUME_ANALYSIS
+  SEARCH
+}
+
+// ─────────────────────────── Identity & auth ───────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  // Nullable: Clerk-managed users may not have a local password hash.
+  passwordHash  String?
+  clerkId       String?   @unique
+  fullName      String
+  avatarUrl     String?
+  branch        String?
+  semester      Int?
+  university    String?
+  isActive      Boolean   @default(true)
+  emailVerified Boolean   @default(false)
+  lastLoginAt   DateTime?
+
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  sessions      Session[]
+  refreshTokens RefreshToken[]
+  chats         Chat[]
+  documents     Document[]
+  feedback      Feedback[]
+  notifications Notification[]
+  bookmarks     Bookmark[]
+  flashcards    Flashcard[]
+  quizAttempts  QuizAttempt[]
+  studyPlans    StudyPlan[]
+  usageLogs     UsageLog[]
+  adminLogs     AdminLog[]     @relation("AdminActor")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([roleId])
+  @@index([branch, semester])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        RoleName @unique
+  description String?
+  users       User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("roles")
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent  String?
+  ipAddress  String?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime  @default(now())
+
+  refreshTokens RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId    String?
+  session      Session?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  // Store only a hash of the token; never the raw value.
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  // Points at the token that replaced this one (rotation chain).
+  replacedById String?   @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────── Academic taxonomy ───────────────────────────
+
+model Course {
+  id          String  @id @default(cuid())
+  name        String
+  code        String  @unique
+  branch      String
+  description String?
+
+  subjects Subject[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([branch])
+  @@map("courses")
+}
+
+model Subject {
+  id       String @id @default(cuid())
+  name     String
+  code     String @unique
+  semester Int
+  credits  Int?
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  documents          Document[]
+  previousYearPapers PreviousYearPaper[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([courseId])
+  @@index([semester])
+  @@map("subjects")
+}
+
+// ─────────────────────────── Documents & ingestion ───────────────────────────
+
+model Document {
+  id           String         @id @default(cuid())
+  title        String
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  storageUrl   String
+  storageKey   String
+  type         DocumentType   @default(OTHER)
+  status       DocumentStatus @default(QUEUED)
+  // Free-form extracted metadata (year, unit, topic, ocrApplied, pageCount, ...).
+  metadata     Json?
+  errorMessage String?
+  pageCount    Int?
+  chunkCount   Int            @default(0)
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  embeddingMetadata EmbeddingMetadata[]
+  previousYearPaper PreviousYearPaper?
+  bookmarks         Bookmark[]
+  feedback          Feedback[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([ownerId])
+  @@index([subjectId])
+  @@index([status])
+  @@index([type])
+  @@index([deletedAt])
+  @@map("documents")
+}
+
+model PreviousYearPaper {
+  id       String @id @default(cuid())
+  year     Int
+  examType String // MID_SEM, END_SEM, QUIZ, ...
+
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  // A PYP is backed by exactly one uploaded document.
+  documentId String   @unique
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([subjectId])
+  @@index([year])
+  @@map("previous_year_papers")
+}
+
+// One row per vector chunk stored in Pinecone; the source of truth for citations.
+model EmbeddingMetadata {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  // The vector id in Pinecone.
+  vectorId   String   @unique
+  chunkIndex Int
+  content    String   @db.Text
+  tokenCount Int?
+  pageNumber Int?
+  // Extracted per-chunk hints: topic, unit, headings, etc.
+  metadata   Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([documentId, chunkIndex])
+  @@index([documentId])
+  @@map("embedding_metadata")
+}
+
+// ─────────────────────────── Chat ───────────────────────────
+
+model Chat {
+  id       String  @id @default(cuid())
+  title    String  @default("New chat")
+  isPinned Boolean @default(false)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  messages Message[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([userId])
+  @@index([userId, isPinned])
+  @@index([deletedAt])
+  @@map("chats")
+}
+
+model Message {
+  id       String        @id @default(cuid())
+  chatId   String
+  chat     Chat          @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role     ChatRole
+  status   MessageStatus @default(COMPLETE)
+  content  String        @db.Text
+  // Citations, retrieved sources, agent trace, token usage, latency.
+  metadata Json?
+
+  feedback Feedback[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([chatId])
+  @@index([chatId, createdAt])
+  @@map("messages")
+}
+
+// ─────────────────────────── Study tools ───────────────────────────
+
+model Flashcard {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question     String   @db.Text
+  answer       String   @db.Text
+  subject      String?
+  // Spaced-repetition state.
+  easeFactor   Float    @default(2.5)
+  intervalDays Int      @default(0)
+  dueAt        DateTime @default(now())
+  reviewCount  Int      @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([userId])
+  @@index([userId, dueAt])
+  @@map("flashcards")
+}
+
+model QuizAttempt {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject        String?
+  // Generated questions + the user's answers + correctness.
+  questions      Json
+  answers        Json?
+  score          Float?
+  totalQuestions Int
+  completedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, createdAt])
+  @@map("quiz_attempts")
+}
+
+model StudyPlan {
+  id        String          @id @default(cuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  status    StudyPlanStatus @default(ACTIVE)
+  // Ordered tasks/goals with target dates.
+  items     Json
+  startDate DateTime?
+  endDate   DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("study_plans")
+}
+
+model Bookmark {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  note       String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, documentId])
+  @@index([userId])
+  @@index([documentId])
+  @@map("bookmarks")
+}
+
+// ─────────────────────────── Feedback, notifications, analytics ───────────────────────────
+
+model Feedback {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  target     FeedbackTarget
+  // Optional links depending on target.
+  messageId  String?
+  message    Message?       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  documentId String?
+  document   Document?      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  rating  Int // -1 / +1 or 1..5 depending on target
+  comment String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([messageId])
+  @@index([documentId])
+  @@map("feedback")
+}
+
+model Notification {
+  id     String           @id @default(cuid())
+  userId String
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   NotificationType
+  title  String
+  body   String?          @db.Text
+  data   Json?
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+// Aggregated, queryable analytics events (DAU, latency, cost, top topics, ...).
+model Analytics {
+  id         String   @id @default(cuid())
+  // e.g. "chat.latency_ms", "ingestion.embedding_cost_usd", "search.topic".
+  metric     String
+  value      Float?
+  dimension  String? // free-form bucket (topic, subject, model, ...)
+  userId     String?
+  // Full event payload for ad-hoc analysis.
+  metadata   Json?
+  occurredAt DateTime @default(now())
+
+  @@index([metric])
+  @@index([metric, occurredAt])
+  @@index([userId])
+  @@map("analytics")
+}
+
+model UsageLog {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind             UsageKind
+  // Token accounting + cost estimate for billing/quotas.
+  model            String?
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  costUsd          Float?
+  latencyMs        Int?
+  requestId        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([kind])
+  @@index([userId, createdAt])
+  @@map("usage_logs")
+}
+
+model AdminLog {
+  id        String  @id @default(cuid())
+  actorId   String
+  actor     User    @relation("AdminActor", fields: [actorId], references: [id], onDelete: Cascade)
+  action    String // "user.suspend", "document.delete", "subject.create", ...
+  // Target entity reference + before/after snapshot for the audit trail.
+  entity    String?
+  entityId  String?
+  changes   Json?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("admin_logs")
+}
+
+// Versioned, named prompt templates used by the AI service (managed from admin).
+model PromptTemplate {
+  id          String  @id @default(cuid())
+  key         String // logical name, e.g. "rag.answer_generator"
+  version     Int     @default(1)
+  content     String  @db.Text
+  description String?
+  isActive    Boolean @default(true)
+  variables   Json? // declared template variables + defaults
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([key, version])
+  @@index([key, isActive])
+  @@map("prompt_templates")
+}
