@@ -6,6 +6,7 @@ import { useState } from 'react';
 import {
   BookOpen,
   FileText,
+  LayoutDashboard,
   LogOut,
   MessageSquarePlus,
   Pin,
@@ -124,6 +125,17 @@ export function Sidebar(): React.ReactElement {
       </nav>
 
       <div className="space-y-2 border-t border-border p-3">
+        {(user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN') && (
+          <Link
+            href="/admin"
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-surface-2',
+              pathname === '/admin' && 'bg-surface-2',
+            )}
+          >
+            <LayoutDashboard className="h-4 w-4" /> Admin
+          </Link>
+        )}
         <Link
           href="/study"
           className={cn(
