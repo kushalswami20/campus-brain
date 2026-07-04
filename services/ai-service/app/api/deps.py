@@ -1,9 +1,10 @@
 """Shared FastAPI dependencies: settings, auth, providers, and service wiring.
 
-Providers are process-wide singletons (``lru_cache``) so ingestion and retrieval
-share one vector store and embedding model. Concrete implementations are chosen
-by configuration: real OpenAI/Pinecone when keys are present, otherwise the
-deterministic fakes — the rest of the code never knows the difference.
+Providers and the compiled agent graph are process-wide singletons (``lru_cache``)
+so ingestion and retrieval share one dense store, one sparse index, and one
+embedding model. Concrete implementations are chosen by configuration: real
+OpenAI/Pinecone when keys are present, otherwise deterministic fakes — the rest
+of the code never knows the difference.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from typing import Annotated
 
 from fastapi import Depends, Header
 
+from app.agents.graph import RagPipeline
 from app.core.config import Settings, get_settings
 from app.core.errors import UnauthorizedServiceError
 from app.services.ingestion.ingest_service import IngestService
@@ -21,6 +23,11 @@ from app.services.providers.embeddings import (
     FakeEmbeddingProvider,
     OpenAIEmbeddingProvider,
 )
+from app.services.providers.keyword_index import (
+    InMemoryBM25Index,
+    KeywordIndex,
+)
+from app.services.providers.llm import FakeLLM, LLMProvider, OpenAILLM
 from app.services.providers.vector_store import (
     InMemoryVectorStore,
     PineconeVectorStore,
@@ -63,12 +70,39 @@ def get_vector_store() -> VectorStore:
     return InMemoryVectorStore()
 
 
+@lru_cache
+def get_keyword_index() -> KeywordIndex:
+    return InMemoryBM25Index()
+
+
+@lru_cache
+def get_llm_provider() -> LLMProvider:
+    settings = get_settings()
+    if settings.openai_api_key:
+        return OpenAILLM(settings.openai_api_key, settings.openai_model)
+    return FakeLLM()
+
+
+@lru_cache
+def get_pipeline() -> RagPipeline:
+    settings = get_settings()
+    return RagPipeline(
+        embeddings=get_embedding_provider(),
+        vector_store=get_vector_store(),
+        keyword_index=get_keyword_index(),
+        llm=get_llm_provider(),
+        reranker_model=settings.reranker_model or None,
+    )
+
+
 def get_ingest_service() -> IngestService:
-    return IngestService(get_embedding_provider(), get_vector_store())
+    return IngestService(
+        get_embedding_provider(), get_vector_store(), get_keyword_index()
+    )
 
 
 def get_rag_service(settings: SettingsDep) -> RagService:
-    return RagService(settings, get_embedding_provider(), get_vector_store())
+    return RagService(settings, get_pipeline())
 
 
 RagServiceDep = Annotated[RagService, Depends(get_rag_service)]

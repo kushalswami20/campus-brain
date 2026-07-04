@@ -13,6 +13,7 @@ import time
 from app.core.logging import get_logger
 from app.schemas.ingest import ChunkRecord, IngestRequest, IngestResponse
 from app.services.providers.embeddings import EmbeddingProvider
+from app.services.providers.keyword_index import KeywordIndex
 from app.services.providers.vector_store import VectorRecord, VectorStore
 
 from .chunking import chunk_text
@@ -24,10 +25,14 @@ logger = get_logger(__name__)
 
 class IngestService:
     def __init__(
-        self, embeddings: EmbeddingProvider, vector_store: VectorStore
+        self,
+        embeddings: EmbeddingProvider,
+        vector_store: VectorStore,
+        keyword_index: KeywordIndex,
     ) -> None:
         self._embeddings = embeddings
         self._store = vector_store
+        self._keywords = keyword_index
 
     def ingest(self, request: IngestRequest) -> IngestResponse:
         started = time.perf_counter()
@@ -59,6 +64,11 @@ class IngestService:
 
         vectors = self._embeddings.embed([chunk.content for chunk in chunks])
 
+        # Idempotent re-ingest: clear any prior chunks for this document from
+        # both the dense and sparse indexes before writing the new ones.
+        self._store.delete_by_document(request.document_id)
+        self._keywords.delete_by_document(request.document_id)
+
         records: list[ChunkRecord] = []
         vector_records: list[VectorRecord] = []
         for chunk, vector in zip(chunks, vectors, strict=True):
@@ -78,15 +88,18 @@ class IngestService:
                     metadata=chunk_metadata,
                 )
             )
+            enriched = {**chunk_metadata, "content": chunk.content}
             vector_records.append(
                 VectorRecord(
                     vector_id=vector_id,
                     values=vector,
                     # Store the text in vector metadata so retrieval can build
                     # citations without a second lookup.
-                    metadata={**chunk_metadata, "content": chunk.content},
+                    metadata=enriched,
                 )
             )
+            # Mirror the chunk into the sparse (BM25) index for hybrid search.
+            self._keywords.add(vector_id, chunk.content, enriched)
 
         self._store.upsert(vector_records)
 

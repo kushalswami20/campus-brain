@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     pinecone_api_key: str = Field(default="")
     pinecone_index: str = Field(default="campusbrain")
 
+    # Cross-encoder reranker model. Empty ⇒ deterministic lexical reranker (no
+    # torch). Set to e.g. "cross-encoder/ms-marco-MiniLM-L-6-v2" when
+    # sentence-transformers is installed.
+    reranker_model: str = Field(default="")
+
     ai_redis_url: str = Field(default="")
 
     # Generation defaults.

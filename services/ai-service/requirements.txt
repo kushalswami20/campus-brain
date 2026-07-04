@@ -18,5 +18,10 @@ pytesseract==0.3.13
 openai==1.57.4
 pinecone-client==5.0.1
 
-# Multi-agent RAG stack (LangGraph/LangChain, hybrid retrieval, reranking) is
-# added in Milestone 5.
+# Multi-agent RAG stack. LangGraph orchestrates the agent graph; rank-bm25 is the
+# sparse half of hybrid retrieval. Cross-encoder reranking uses sentence-
+# transformers when installed (heavy, torch-backed) and falls back to a
+# deterministic reranker otherwise — install it in the GPU/prod image:
+#   sentence-transformers==3.3.1
+langgraph==0.2.53
+rank-bm25==0.2.2

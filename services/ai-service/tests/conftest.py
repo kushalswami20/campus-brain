@@ -16,3 +16,7 @@ from app.api import deps
 def reset_providers() -> None:
     deps.get_embedding_provider.cache_clear()
     deps.get_vector_store.cache_clear()
+    deps.get_keyword_index.cache_clear()
+    deps.get_llm_provider.cache_clear()
+    # The compiled pipeline captures provider instances, so rebuild it too.
+    deps.get_pipeline.cache_clear()
