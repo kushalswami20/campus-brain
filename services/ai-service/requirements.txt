@@ -1,6 +1,4 @@
-# Runtime dependencies for the AI service skeleton (Milestone 3).
-# Heavy AI/RAG libraries (langgraph, langchain, sentence-transformers, pinecone,
-# pymupdf, rank-bm25, etc.) are added with Milestones 4/5 to keep this image lean.
+# Core runtime.
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
 pydantic==2.10.3
@@ -8,3 +6,17 @@ pydantic-settings==2.6.1
 structlog==24.4.0
 httpx==0.28.1
 python-multipart==0.0.19
+
+# Ingestion — document parsing & OCR (used on the real path; the local text +
+# fake-provider path needs none of these).
+pymupdf==1.25.1
+python-docx==1.1.2
+pillow==11.0.0
+pytesseract==0.3.13
+
+# Real providers, activated automatically when their keys are configured.
+openai==1.57.4
+pinecone-client==5.0.1
+
+# Multi-agent RAG stack (LangGraph/LangChain, hybrid retrieval, reranking) is
+# added in Milestone 5.

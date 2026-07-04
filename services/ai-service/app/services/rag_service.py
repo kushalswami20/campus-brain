@@ -18,17 +18,27 @@ from app.schemas.rag import (
     Citation,
     RagAnswer,
     RagQueryRequest,
+    RetrievalFilters,
     StreamEvent,
     StreamEventType,
     TokenUsage,
 )
+from app.services.providers.embeddings import EmbeddingProvider
+from app.services.providers.vector_store import VectorStore
 
 logger = get_logger(__name__)
 
 
 class RagService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        embeddings: EmbeddingProvider,
+        vector_store: VectorStore,
+    ) -> None:
         self._settings = settings
+        self._embeddings = embeddings
+        self._store = vector_store
 
     async def answer_stream(
         self, request: RagQueryRequest
@@ -75,17 +85,51 @@ class RagService:
         )
 
     async def _retrieve(self, request: RagQueryRequest) -> list[Citation]:
-        """Retrieval is wired to Pinecone in Milestone 4/5.
+        """Dense retrieval over the vector store, with metadata filtering.
 
-        Until documents are ingested and providers configured, retrieval returns
-        no context — which is the correct, honest behaviour: the composer then
-        refuses rather than fabricating sources.
+        Multi-agent hybrid retrieval (BM25 + dense), reranking, and compression
+        layer on top of this in Milestone 5 behind the same signature.
         """
-        if not self._settings.providers_ready:
-            return []
-        # M4/M5: hybrid BM25 + dense retrieval, rerank, compress. Placeholder-free
-        # implementation lands with those milestones behind this same signature.
-        return []
+        query_vector = self._embeddings.embed_one(request.query)
+        top_k = request.top_k or self._settings.default_top_k
+        matches = self._store.query(
+            query_vector, top_k=top_k, flt=self._build_filter(request.filters)
+        )
+
+        # Drop weak matches so an unrelated corpus doesn't force a false "grounded".
+        threshold = 0.05
+        citations: list[Citation] = []
+        for match in matches:
+            if match.score < threshold:
+                continue
+            meta = match.metadata
+            citations.append(
+                Citation(
+                    vector_id=match.vector_id,
+                    document_id=str(meta.get("document_id", "")),
+                    chunk_index=int(meta.get("chunk_index", 0)),
+                    content=str(meta.get("content", "")),
+                    page_number=meta.get("page_number"),
+                    score=round(match.score, 4),
+                    title=meta.get("topic") or meta.get("document_id"),
+                )
+            )
+        return citations
+
+    @staticmethod
+    def _build_filter(filters: RetrievalFilters | None) -> dict | None:
+        if not filters:
+            return None
+        built: dict = {}
+        if filters.subject_id:
+            built["subject_id"] = filters.subject_id
+        if filters.document_type:
+            built["document_type"] = filters.document_type
+        if filters.year:
+            built["year"] = filters.year
+        if filters.unit:
+            built["unit"] = filters.unit
+        return built or None
 
     def _compose(self, request: RagQueryRequest, citations: list[Citation]) -> str:
         if not citations:
@@ -95,10 +139,18 @@ class RagService:
                 "Upload notes, papers, or a syllabus and ask again.\n\n"
                 f'(You asked: "{request.query.strip()}")'
             )
-        sources = ", ".join(sorted({c.title or c.document_id for c in citations}))
+
+        # Extractive, grounded synthesis. When an LLM key is present (M5) this is
+        # replaced by the multi-agent answer generator; the citations it cites are
+        # exactly these retrieved chunks, keeping answers verifiable.
+        top = citations[: min(3, len(citations))]
+        excerpts = "\n\n".join(
+            f"[{i + 1}] {c.content.strip()}" for i, c in enumerate(top)
+        )
+        sources = ", ".join(sorted({c.title or c.document_id for c in top}))
         return (
-            f'Based on your material ({sources}), here is a grounded answer to '
-            f'"{request.query.strip()}".'
+            f'Based on your uploaded material ({sources}), here is what is most '
+            f'relevant to "{request.query.strip()}":\n\n{excerpts}'
         )
 
     @staticmethod
