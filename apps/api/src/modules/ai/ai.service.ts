@@ -2,9 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { AiClient } from './ai.client';
 import {
   AiReadiness,
+  IngestRequest,
+  IngestResult,
   RagAnswer,
   RagQueryRequest,
   fromWireAnswer,
+  fromWireIngest,
+  toWireIngest,
   toWireRequest,
 } from './ai.types';
 
@@ -15,6 +19,18 @@ import {
 @Injectable()
 export class AiService {
   constructor(private readonly client: AiClient) {}
+
+  /** Ingest a document: extract, chunk, embed, and index it. */
+  async ingest(req: IngestRequest): Promise<IngestResult> {
+    const wire = await this.client.request<Parameters<typeof fromWireIngest>[0]>({
+      path: '/v1/ingest',
+      method: 'POST',
+      body: toWireIngest(req),
+      requestId: req.requestId,
+      retryable: true,
+    });
+    return fromWireIngest(wire);
+  }
 
   /** Non-streaming answer. */
   async query(req: RagQueryRequest): Promise<RagAnswer> {

@@ -62,6 +62,88 @@ export interface AiReadiness {
   checks: Record<string, string>;
 }
 
+// ─── Ingestion contract ───
+
+export interface IngestRequest {
+  requestId: string;
+  documentId: string;
+  filename: string;
+  mimeType: string;
+  contentBase64: string;
+  subjectId?: string;
+  documentType?: string;
+}
+
+export interface IngestChunk {
+  vectorId: string;
+  chunkIndex: number;
+  content: string;
+  tokenCount: number;
+  pageNumber?: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface IngestResult {
+  requestId: string;
+  documentId: string;
+  status: string;
+  chunkCount: number;
+  pageCount?: number;
+  ocrApplied: boolean;
+  detectedMetadata: Record<string, unknown>;
+  chunks: IngestChunk[];
+}
+
+export function toWireIngest(req: IngestRequest): Record<string, unknown> {
+  return {
+    request_id: req.requestId,
+    document_id: req.documentId,
+    filename: req.filename,
+    mime_type: req.mimeType,
+    content_base64: req.contentBase64,
+    subject_id: req.subjectId,
+    document_type: req.documentType,
+  };
+}
+
+interface WireIngestResult {
+  request_id: string;
+  document_id: string;
+  status: string;
+  chunk_count: number;
+  page_count?: number;
+  ocr_applied: boolean;
+  detected_metadata: Record<string, unknown>;
+  chunks: Array<{
+    vector_id: string;
+    chunk_index: number;
+    content: string;
+    token_count: number;
+    page_number?: number;
+    metadata: Record<string, unknown>;
+  }>;
+}
+
+export function fromWireIngest(wire: WireIngestResult): IngestResult {
+  return {
+    requestId: wire.request_id,
+    documentId: wire.document_id,
+    status: wire.status,
+    chunkCount: wire.chunk_count,
+    pageCount: wire.page_count,
+    ocrApplied: wire.ocr_applied,
+    detectedMetadata: wire.detected_metadata,
+    chunks: wire.chunks.map((c) => ({
+      vectorId: c.vector_id,
+      chunkIndex: c.chunk_index,
+      content: c.content,
+      tokenCount: c.token_count,
+      pageNumber: c.page_number,
+      metadata: c.metadata,
+    })),
+  };
+}
+
 /**
  * The AI service speaks snake_case (Python). These helpers translate at the
  * boundary so the rest of the API stays camelCase.

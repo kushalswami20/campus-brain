@@ -13,8 +13,14 @@ export const envSchema = z.object({
 
   DATABASE_URL: z.string().url(),
 
-  // Optional until their respective milestones.
-  REDIS_URL: z.string().url().optional(),
+  // Queue/cache (Milestone 4b). Required for BullMQ ingestion jobs.
+  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+
+  // Storage (Milestone 4b). `local` writes to UPLOAD_DIR; `cloudinary` needs a URL.
+  STORAGE_DRIVER: z.enum(['local', 'cloudinary']).default('local'),
+  UPLOAD_DIR: z.string().default('./uploads'),
+  CLOUDINARY_URL: z.string().optional(),
+  MAX_UPLOAD_MB: z.coerce.number().int().positive().default(25),
 
   // AI service (Milestone 3). URL has a dev default; key optional in dev.
   AI_SERVICE_URL: z.string().url().default('http://localhost:8000'),
