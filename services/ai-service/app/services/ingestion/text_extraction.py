@@ -48,7 +48,15 @@ def extract(data: bytes, mime_type: str) -> ExtractionResult:
 
 
 def _extract_pdf(data: bytes) -> ExtractionResult:
-    import fitz  # PyMuPDF — lazy import
+    try:
+        import fitz  # PyMuPDF — lazy import
+    except ImportError as exc:
+        raise AIServiceError(
+            "PDF support is not installed on the AI service "
+            "(pip install -r requirements.txt).",
+            code="AI_PARSER_UNAVAILABLE",
+            status_code=503,
+        ) from exc
 
     text_parts: list[str] = []
     ocr_applied = False
@@ -66,7 +74,15 @@ def _extract_pdf(data: bytes) -> ExtractionResult:
 def _extract_docx(data: bytes) -> ExtractionResult:
     import io
 
-    import docx  # python-docx — lazy import
+    try:
+        import docx  # python-docx — lazy import
+    except ImportError as exc:
+        raise AIServiceError(
+            "DOCX support is not installed on the AI service "
+            "(pip install -r requirements.txt).",
+            code="AI_PARSER_UNAVAILABLE",
+            status_code=503,
+        ) from exc
 
     document = docx.Document(io.BytesIO(data))
     text = "\n".join(p.text for p in document.paragraphs)
