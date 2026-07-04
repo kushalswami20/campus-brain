@@ -2,15 +2,39 @@ import { Injectable } from '@nestjs/common';
 import { AiClient } from './ai.client';
 import {
   AiReadiness,
+  FlashcardsResult,
   IngestRequest,
   IngestResult,
+  QuizResult,
   RagAnswer,
   RagQueryRequest,
+  StudyRequest,
+  SummaryResult,
   fromWireAnswer,
   fromWireIngest,
   toWireIngest,
   toWireRequest,
+  toWireStudy,
 } from './ai.types';
+
+interface WireSummary {
+  summary: string;
+  key_points: string[];
+  grounded: boolean;
+}
+interface WireFlashcards {
+  flashcards: { question: string; answer: string }[];
+  grounded: boolean;
+}
+interface WireQuiz {
+  questions: {
+    question: string;
+    options: string[];
+    answer_index: number;
+    explanation: string;
+  }[];
+  grounded: boolean;
+}
 
 /**
  * Higher-level AI orchestration surface used by feature modules (chat, study
@@ -53,6 +77,51 @@ export class AiService {
       // Streams are not safely retryable once bytes flow; fail fast instead.
       retryable: false,
     });
+  }
+
+  async summarize(req: StudyRequest): Promise<SummaryResult> {
+    const wire = await this.client.request<WireSummary>({
+      path: '/v1/study/summary',
+      method: 'POST',
+      body: toWireStudy(req),
+      requestId: req.requestId,
+      retryable: true,
+    });
+    return {
+      summary: wire.summary,
+      keyPoints: wire.key_points,
+      grounded: wire.grounded,
+    };
+  }
+
+  async generateFlashcards(req: StudyRequest): Promise<FlashcardsResult> {
+    const wire = await this.client.request<WireFlashcards>({
+      path: '/v1/study/flashcards',
+      method: 'POST',
+      body: toWireStudy(req),
+      requestId: req.requestId,
+      retryable: true,
+    });
+    return { flashcards: wire.flashcards, grounded: wire.grounded };
+  }
+
+  async generateQuiz(req: StudyRequest): Promise<QuizResult> {
+    const wire = await this.client.request<WireQuiz>({
+      path: '/v1/study/quiz',
+      method: 'POST',
+      body: toWireStudy(req),
+      requestId: req.requestId,
+      retryable: true,
+    });
+    return {
+      grounded: wire.grounded,
+      questions: wire.questions.map((q) => ({
+        question: q.question,
+        options: q.options,
+        answerIndex: q.answer_index,
+        explanation: q.explanation,
+      })),
+    };
   }
 
   /** Readiness of the AI service and its providers. */

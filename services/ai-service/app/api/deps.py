@@ -34,6 +34,7 @@ from app.services.providers.vector_store import (
     VectorStore,
 )
 from app.services.rag_service import RagService
+from app.services.study.study_service import StudyService
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
@@ -105,5 +106,12 @@ def get_rag_service(settings: SettingsDep) -> RagService:
     return RagService(settings, get_pipeline())
 
 
+def get_study_service() -> StudyService:
+    return StudyService(
+        get_embedding_provider(), get_vector_store(), get_llm_provider()
+    )
+
+
 RagServiceDep = Annotated[RagService, Depends(get_rag_service)]
 IngestServiceDep = Annotated[IngestService, Depends(get_ingest_service)]
+StudyServiceDep = Annotated[StudyService, Depends(get_study_service)]

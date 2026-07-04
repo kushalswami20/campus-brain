@@ -94,6 +94,52 @@ export interface IngestResult {
   chunks: IngestChunk[];
 }
 
+// ─── Study-tools contract ───
+
+export interface StudyRequest {
+  requestId: string;
+  userId: string;
+  topic?: string;
+  count?: number;
+}
+
+export interface StudyFlashcard {
+  question: string;
+  answer: string;
+}
+
+export interface StudyQuizQuestion {
+  question: string;
+  options: string[];
+  answerIndex: number;
+  explanation: string;
+}
+
+export interface SummaryResult {
+  summary: string;
+  keyPoints: string[];
+  grounded: boolean;
+}
+
+export interface FlashcardsResult {
+  flashcards: StudyFlashcard[];
+  grounded: boolean;
+}
+
+export interface QuizResult {
+  questions: StudyQuizQuestion[];
+  grounded: boolean;
+}
+
+export function toWireStudy(req: StudyRequest): Record<string, unknown> {
+  return {
+    request_id: req.requestId,
+    user_id: req.userId,
+    topic: req.topic ?? '',
+    count: req.count ?? 8,
+  };
+}
+
 export function toWireIngest(req: IngestRequest): Record<string, unknown> {
   return {
     request_id: req.requestId,

@@ -13,6 +13,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { StudyModule } from './modules/study/study.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 
@@ -46,6 +47,7 @@ import { RolesGuard } from './modules/auth/guards/roles.guard';
     StorageModule,
     DocumentsModule,
     ChatModule,
+    StudyModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

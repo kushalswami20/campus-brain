@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.api.routes import health, ingest, rag
+from app.api.routes import health, ingest, rag, study
 from app.core.config import get_settings
 from app.core.errors import AIServiceError, error_body, resolve_request_id, to_response
 from app.core.logging import configure_logging, get_logger
@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(ingest.router)
     app.include_router(rag.router)
+    app.include_router(study.router)
 
     @app.exception_handler(AIServiceError)
     async def handle_domain_error(
