@@ -52,9 +52,11 @@ class RagPipeline:
         keyword_index: KeywordIndex,
         llm: LLMProvider,
         reranker_model: str | None = None,
+        min_relevance: float = 0.0,
     ) -> None:
         self._graph = self._build(
-            embeddings, vector_store, keyword_index, llm, reranker_model
+            embeddings, vector_store, keyword_index, llm, reranker_model,
+            min_relevance,
         )
 
     def run(
@@ -91,6 +93,7 @@ class RagPipeline:
         keyword_index: KeywordIndex,
         llm: LLMProvider,
         reranker_model: str | None,
+        min_relevance: float = 0.0,
     ):  # type: ignore[no-untyped-def]
         graph = StateGraph(RagState)
 
@@ -101,7 +104,9 @@ class RagPipeline:
         graph.add_node("hybrid_search", HybridSearchAgent(keyword_index))
         graph.add_node("reranker", RerankerAgent(reranker_model))
         graph.add_node("reasoning", ReasoningAgent())
-        graph.add_node("answer_generator", AnswerGeneratorAgent(llm))
+        graph.add_node(
+            "answer_generator", AnswerGeneratorAgent(llm, min_relevance)
+        )
         graph.add_node("verification_agent", VerificationAgent())
         graph.add_node("citation_agent", CitationAgent())
         graph.add_node("reflection_agent", ReflectionAgent())

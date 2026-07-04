@@ -7,11 +7,20 @@ candidates by true query-passage relevance, which fusion alone only approximates
 
 from __future__ import annotations
 
+import logging
+import math
 import re
 
 from .state import RagState, Retrieved
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
+logger = logging.getLogger(__name__)
+
+
+def _sigmoid(x: float) -> float:
+    # Clamp to avoid math.exp overflow on extreme cross-encoder logits.
+    x = max(-30.0, min(30.0, x))
+    return 1.0 / (1.0 + math.exp(-x))
 
 
 class RerankerAgent:
@@ -24,7 +33,11 @@ class RerankerAgent:
         top_k = state.get("top_k", 8)
         candidates = state.get("fused", []) or state.get("dense", [])
         if not candidates:
-            return {"reranked": [], "trace": [*state.get("trace", []), self.name]}
+            return {
+                "reranked": [],
+                "relevance": 0.0,
+                "trace": [*state.get("trace", []), self.name],
+            }
 
         query = state["query"]
         if self._cross_encoder is not None:
@@ -35,15 +48,23 @@ class RerankerAgent:
                 {**c, "score": round(float(score), 6)}
                 for c, score in zip(candidates, scores, strict=True)
             ]
+            # Cross-encoder logits → probability; the best passage's probability
+            # is our relevance signal (relevant ≈ 1, off-topic ≈ 0).
+            relevance = _sigmoid(max(float(s) for s in scores))
         else:
             ranked = [
                 {**c, "score": round(self._lexical_score(query, c), 6)}
                 for c in candidates
             ]
+            # No cross-encoder: fall back to the strongest dense cosine, a more
+            # trustworthy relevance signal than lexical overlap.
+            dense = state.get("dense", [])
+            relevance = float(dense[0]["score"]) if dense else 0.0
 
         ranked.sort(key=lambda c: c["score"], reverse=True)
         return {
             "reranked": ranked[:top_k],  # type: ignore[typeddict-item]
+            "relevance": round(relevance, 4),
             "trace": [*state.get("trace", []), self.name],
         }
 
@@ -60,10 +81,18 @@ class RerankerAgent:
     @staticmethod
     def _maybe_load(model_name: str | None):  # type: ignore[no-untyped-def]
         if not model_name:
+            logger.info("Reranker: no RERANKER_MODEL set; using lexical fallback.")
             return None
         try:
             from sentence_transformers import CrossEncoder
 
-            return CrossEncoder(model_name)
-        except Exception:
+            model = CrossEncoder(model_name)
+            logger.info("Reranker: loaded cross-encoder '%s'.", model_name)
+            return model
+        except Exception as exc:  # pragma: no cover - env-dependent
+            logger.warning(
+                "Reranker: failed to load '%s' (%s); using lexical fallback.",
+                model_name,
+                exc,
+            )
             return None

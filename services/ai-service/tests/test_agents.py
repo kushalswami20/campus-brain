@@ -43,6 +43,9 @@ def _seed() -> RagPipeline:
         vector_store=store,
         keyword_index=keywords,
         llm=FakeLLM(),
+        # Exercise the production out-of-scope gate; in-scope queries below
+        # score well above it (fake cosine ≈ 0.39–0.67).
+        min_relevance=0.30,
     )
 
 
@@ -86,3 +89,18 @@ def test_metadata_filter_scopes_retrieval() -> None:
     )
     # Only doc2 chunks are eligible under the filter.
     assert all(c["document_id"] == "doc2" for c in result.citations)
+
+
+def test_out_of_scope_question_is_refused() -> None:
+    """The relevance gate must refuse a question the material can't answer,
+    rather than forcing an answer out of the nearest (irrelevant) passages."""
+    pipeline = _seed()
+    result = pipeline.run(
+        request_id="r4",
+        query="who won the 2022 World Cup?",
+        filters=None,
+        top_k=5,
+    )
+    assert result.grounded is False
+    assert result.citations == []
+    assert "couldn't find" in result.answer

@@ -19,9 +19,10 @@ openai==1.57.4
 pinecone-client==5.0.1
 
 # Multi-agent RAG stack. LangGraph orchestrates the agent graph; rank-bm25 is the
-# sparse half of hybrid retrieval. Cross-encoder reranking uses sentence-
-# transformers when installed (heavy, torch-backed) and falls back to a
-# deterministic reranker otherwise — install it in the GPU/prod image:
-#   sentence-transformers==3.3.1
+# sparse half of hybrid retrieval. sentence-transformers (heavy, torch-backed) is
+# optional and powers TWO keys-free upgrades when installed: local semantic
+# embeddings (LOCAL_EMBEDDING_MODEL) and cross-encoder reranking (RERANKER_MODEL).
+# Without it, the service falls back to the hashing/lexical defaults. Install with:
+#   pip install sentence-transformers==3.3.1
 langgraph==0.2.53
 rank-bm25==0.2.2

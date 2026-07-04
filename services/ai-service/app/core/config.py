@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4.1")
     embedding_model: str = Field(default="text-embedding-3-large")
 
+    # Local, keys-free semantic embeddings. Empty ⇒ hashing fake (token overlap).
+    # Set to e.g. "sentence-transformers/all-MiniLM-L6-v2" (needs
+    # sentence-transformers installed) for real on-device semantic retrieval.
+    # Takes effect only when no OpenAI key is set. Re-ingest documents after
+    # changing this — the vector dimension changes.
+    local_embedding_model: str = Field(default="")
+
     pinecone_api_key: str = Field(default="")
     pinecone_index: str = Field(default="campusbrain")
 
@@ -45,6 +52,12 @@ class Settings(BaseSettings):
     # Generation defaults.
     default_top_k: int = Field(default=8)
     request_timeout_seconds: int = Field(default=60)
+
+    # Out-of-scope refusal gate: minimum top-passage relevance in [0,1] required
+    # to answer. Below this the assistant refuses instead of forcing an answer
+    # from unrelated passages. 0.0 disables the gate. ~0.30 cleanly separates
+    # in-scope from off-topic for both the cross-encoder and dense-cosine paths.
+    min_relevance: float = Field(default=0.30)
 
     @property
     def is_production(self) -> bool:

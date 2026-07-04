@@ -21,6 +21,7 @@ from app.services.ingestion.ingest_service import IngestService
 from app.services.providers.embeddings import (
     EmbeddingProvider,
     FakeEmbeddingProvider,
+    LocalEmbeddingProvider,
     OpenAIEmbeddingProvider,
 )
 from app.services.providers.keyword_index import (
@@ -58,6 +59,8 @@ def get_embedding_provider() -> EmbeddingProvider:
         return OpenAIEmbeddingProvider(
             settings.openai_api_key, settings.embedding_model
         )
+    if settings.local_embedding_model:
+        return LocalEmbeddingProvider(settings.local_embedding_model)
     return FakeEmbeddingProvider()
 
 
@@ -93,6 +96,7 @@ def get_pipeline() -> RagPipeline:
         keyword_index=get_keyword_index(),
         llm=get_llm_provider(),
         reranker_model=settings.reranker_model or None,
+        min_relevance=settings.min_relevance,
     )
 
 

@@ -36,6 +36,9 @@ class RagState(TypedDict, total=False):
     sparse: list[Retrieved]
     fused: list[Retrieved]
     reranked: list[Retrieved]
+    # Top-passage relevance in [0,1] (cross-encoder sigmoid or dense cosine);
+    # drives the out-of-scope refusal gate in the answer generator.
+    relevance: float
 
     # Reasoning / generation
     context: str
