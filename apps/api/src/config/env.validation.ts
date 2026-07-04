@@ -13,12 +13,17 @@ export const envSchema = z.object({
 
   DATABASE_URL: z.string().url(),
 
-  // Optional at Milestone 1; required from their respective milestones onward.
+  // Optional until their respective milestones.
   REDIS_URL: z.string().url().optional(),
   AI_SERVICE_URL: z.string().url().optional(),
 
-  JWT_ACCESS_SECRET: z.string().min(16).optional(),
-  JWT_REFRESH_SECRET: z.string().min(16).optional(),
+  // Auth (Milestone 2). Secrets must be strong; lifetimes accept vercel/ms-style strings.
+  JWT_ACCESS_SECRET: z.string().min(16),
+  JWT_REFRESH_SECRET: z.string().min(16),
+  JWT_ACCESS_TTL: z.string().default('15m'),
+  // Refresh lifetime in days (used for DB expiry math + cookie maxAge).
+  JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
 
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])

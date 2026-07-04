@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '@/common/prisma/prisma.service';
+import { Public } from '@/modules/auth/decorators/public.decorator';
 
 interface HealthReport {
   status: 'ok' | 'degraded';
@@ -14,12 +15,14 @@ interface HealthReport {
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Liveness probe — process is up.' })
   liveness(): { status: 'ok'; timestamp: string } {
     return { status: 'ok', timestamp: new Date().toISOString() };
   }
 
+  @Public()
   @Get('ready')
   @ApiOperation({ summary: 'Readiness probe — dependencies reachable.' })
   async readiness(): Promise<HealthReport> {
