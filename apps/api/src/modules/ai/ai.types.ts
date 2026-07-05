@@ -113,6 +113,7 @@ export interface StudyQuizQuestion {
   options: string[];
   answerIndex: number;
   explanation: string;
+  topic: string;
 }
 
 export interface SummaryResult {

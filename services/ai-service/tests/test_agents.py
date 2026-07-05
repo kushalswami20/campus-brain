@@ -104,3 +104,17 @@ def test_out_of_scope_question_is_refused() -> None:
     assert result.grounded is False
     assert result.citations == []
     assert "couldn't find" in result.answer
+
+
+def test_broad_summary_query_bypasses_the_relevance_gate() -> None:
+    """A whole-corpus summary ask names no single topic (low per-passage
+    relevance) but must still answer from the user's own material."""
+    pipeline = _seed()
+    result = pipeline.run(
+        request_id="r5",
+        query="summarise the key topics in my notes",
+        filters=None,
+        top_k=5,
+    )
+    assert result.grounded is True
+    assert result.citations

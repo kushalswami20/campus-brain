@@ -33,10 +33,22 @@ class RerankerAgent:
             }
 
         query = state["query"]
+        scores = None
         if self._cross_encoder is not None:
-            scores = self._cross_encoder.predict(
-                [(query, c["content"]) for c in candidates]
-            )
+            try:
+                scores = self._cross_encoder.predict(
+                    [(query, c["content"]) for c in candidates]
+                )
+            except Exception as exc:  # pragma: no cover - env-dependent
+                # A reranker hiccup must never crash the RAG request; degrade to
+                # the lexical scorer for this query instead.
+                logger.warning(
+                    "Reranker: cross-encoder predict failed (%s); using lexical "
+                    "fallback for this query.",
+                    exc,
+                )
+
+        if scores is not None:
             ranked = [
                 {**c, "score": round(float(score), 6)}
                 for c, score in zip(candidates, scores, strict=True)
@@ -80,6 +92,12 @@ class RerankerAgent:
             from sentence_transformers import CrossEncoder
 
             model = CrossEncoder(model_name)
+            # transformers>=4.5x lazily places weights on the 'meta' device;
+            # sentence-transformers 3.x then fails to move them across threads
+            # (the server runs the graph in a worker thread, separate from the
+            # one that loaded the model). A warm-up predict here forces eager
+            # materialization now, so per-request predicts never touch meta.
+            model.predict([("warmup", "warmup")])
             logger.info("Reranker: loaded cross-encoder '%s'.", model_name)
             return model
         except Exception as exc:  # pragma: no cover - env-dependent

@@ -12,6 +12,14 @@ import {
 interface QuizQuestionShape {
   answerIndex?: number;
   answer_index?: number;
+  topic?: string;
+}
+
+export interface TopicScore {
+  topic: string;
+  correct: number;
+  total: number;
+  score: number;
 }
 
 @Injectable()
@@ -85,14 +93,33 @@ export class StudyService {
   async submitQuiz(userId: string, dto: SubmitQuizDto) {
     const total = dto.questions.length;
     let correct = 0;
+    // Tally correct/total per source topic to surface weak areas (mock test).
+    const topics = new Map<string, { correct: number; total: number }>();
+
     for (const answer of dto.answers) {
       const question = dto.questions[answer.questionIndex] as QuizQuestionShape;
+      const topic = question?.topic ?? 'General';
+      const bucket = topics.get(topic) ?? { correct: 0, total: 0 };
+      bucket.total += 1;
+
       const correctIndex = question?.answerIndex ?? question?.answer_index;
       if (correctIndex !== undefined && correctIndex === answer.selectedIndex) {
         correct += 1;
+        bucket.correct += 1;
       }
+      topics.set(topic, bucket);
     }
     const score = total > 0 ? Math.round((correct / total) * 100) / 100 : 0;
+
+    // Weakest topics first, so the UI can highlight what to revise.
+    const byTopic: TopicScore[] = Array.from(topics.entries())
+      .map(([topic, { correct: c, total: t }]) => ({
+        topic,
+        correct: c,
+        total: t,
+        score: t > 0 ? Math.round((c / t) * 100) / 100 : 0,
+      }))
+      .sort((a, b) => a.score - b.score);
 
     await this.repo.createQuizAttempt({
       userId,
@@ -102,7 +129,7 @@ export class StudyService {
       score,
       totalQuestions: total,
     });
-    return { score, correct, total };
+    return { score, correct, total, byTopic };
   }
 
   listQuizAttempts(userId: string) {

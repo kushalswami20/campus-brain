@@ -41,6 +41,8 @@ class QuizQuestion(BaseModel):
     options: list[str]
     answer_index: int
     explanation: str = ""
+    # Source topic/document, so a mock test can be graded per topic.
+    topic: str = ""
 
 
 class QuizResponse(BaseModel):

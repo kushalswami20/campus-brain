@@ -32,6 +32,7 @@ interface WireQuiz {
     options: string[];
     answer_index: number;
     explanation: string;
+    topic?: string;
   }[];
   grounded: boolean;
 }
@@ -120,6 +121,7 @@ export class AiService {
         options: q.options,
         answerIndex: q.answer_index,
         explanation: q.explanation,
+        topic: q.topic ?? 'General',
       })),
     };
   }

@@ -8,6 +8,8 @@ the anti-hallucination contract enforced at the source of generation.
 
 from __future__ import annotations
 
+import re
+
 from app.services.providers.llm import LLMProvider
 
 from .state import RagState
@@ -15,6 +17,19 @@ from .state import RagState
 _REFUSAL = (
     "I can only answer from your uploaded course material, and I couldn't find "
     "anything relevant to this question. Try uploading related notes or papers."
+)
+
+# Broad "summarise the whole corpus" requests name no single topic, so no passage
+# is a close match and the per-passage relevance gate would wrongly refuse them.
+# These are meta-requests about the user's OWN material, so the gate is bypassed
+# (an empty corpus still refuses, via the no-context check). This must NOT match a
+# specific out-of-scope question like "who won the World Cup".
+_BROAD_QUERY = re.compile(
+    r"\b(summar(y|ise|ize|ising|izing)|overview|key (topics|points|ideas)|"
+    r"main (points|ideas|topics)|most important|important (concept|point|idea)|"
+    r"my notes|the notes|this (document|doc|material|note|pdf)|"
+    r"what.?s? (this|it) about|tl;?dr|the gist|everything)\b",
+    re.IGNORECASE,
 )
 
 
@@ -32,7 +47,13 @@ class AnswerGeneratorAgent:
         # Absent relevance (e.g. no reranker ran) defaults to 1.0 so the gate
         # only ever *adds* refusals, never suppresses a legitimate answer.
         relevance = float(state.get("relevance", 1.0))
-        if not context or relevance < self._min_relevance:
+        # Broad summary/overview asks bypass the per-passage relevance gate.
+        broad = bool(
+            _BROAD_QUERY.search(state.get("query", ""))
+            or _BROAD_QUERY.search(state.get("original_query", ""))
+        )
+        gated_out = relevance < self._min_relevance and not broad
+        if not context or gated_out:
             return {
                 "answer": _REFUSAL,
                 "grounded": False,

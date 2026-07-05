@@ -56,7 +56,18 @@ npm run prisma:studio         # browse the database
 cd apps/api && npm test && npx jest --config ./test/jest-e2e.json
 cd services/ai-service && pytest
 cd apps/web && npm run build
+
+# RAG quality scorecard (recall@k, MRR, grounding, refusal accuracy).
+# Uses local models when sentence-transformers is installed, else the fakes.
+cd services/ai-service && python -m eval.run
 ```
+
+## Measuring RAG quality
+The `eval/` package holds a labelled golden set (`eval/dataset.py`) and a scorer.
+`python -m eval.run` prints a per-case table plus headline metrics and exits
+non-zero if any drops below its threshold — so every retrieval/ranking/gate
+change can be measured, not eyeballed. When you find a question the app handles
+badly, add it to `CASES` as a permanent regression check.
 
 ## Going live with real AI
 Add to `services/ai-service/.env`:

@@ -18,6 +18,21 @@ export interface QuizQuestion {
   options: string[];
   answerIndex: number;
   explanation: string;
+  topic: string;
+}
+
+export interface TopicScore {
+  topic: string;
+  correct: number;
+  total: number;
+  score: number;
+}
+
+export interface QuizResult {
+  score: number;
+  correct: number;
+  total: number;
+  byTopic: TopicScore[];
 }
 
 interface GenerateInput {
@@ -71,9 +86,9 @@ export function useSubmitQuiz() {
       questions: QuizQuestion[];
       answers: { questionIndex: number; selectedIndex: number }[];
     }) =>
-      apiRequest<{ score: number; correct: number; total: number }>(
-        endpoints.study.quizSubmit,
-        { method: 'POST', body: input },
-      ),
+      apiRequest<QuizResult>(endpoints.study.quizSubmit, {
+        method: 'POST',
+        body: input,
+      }),
   });
 }

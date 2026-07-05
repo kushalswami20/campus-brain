@@ -94,15 +94,42 @@ class StudyService:
 
     def quiz(self, request: StudyRequest) -> QuizResponse:
         citations = self._retrieve(request)
-        sentences = self._dedupe(
-            self._sentences("\n\n".join(c.content for c in citations))
+        # Global term pool (across all sources) so distractors stay plausible.
+        terms = self._salient_terms(
+            self._dedupe(self._sentences("\n\n".join(c.content for c in citations)))
         )
-        terms = self._salient_terms(sentences)
-        questions: list[QuizQuestion] = []
 
-        for sentence in sentences:
-            if len(questions) >= request.count:
-                break
+        # Build candidate questions per source, tagged with the source topic,
+        # then round-robin so a mock test spans topics instead of draining the
+        # first document.
+        buckets: list[list[QuizQuestion]] = []
+        for citation in citations:
+            topic = citation.title or citation.document_id or "General"
+            bucket = self._questions_for(citation.content, terms, topic)
+            if bucket:
+                buckets.append(bucket)
+
+        questions: list[QuizQuestion] = []
+        while len(questions) < request.count and any(buckets):
+            for bucket in buckets:
+                if not bucket:
+                    continue
+                questions.append(bucket.pop(0))
+                if len(questions) >= request.count:
+                    break
+
+        return QuizResponse(
+            request_id=request.request_id,
+            questions=questions,
+            citations=citations,
+            grounded=bool(questions),
+        )
+
+    def _questions_for(
+        self, content: str, terms: list[str], topic: str
+    ) -> list[QuizQuestion]:
+        out: list[QuizQuestion] = []
+        for sentence in self._dedupe(self._sentences(content)):
             answer = self._pick_term(sentence, terms)
             if not answer:
                 continue
@@ -110,20 +137,16 @@ class StudyService:
             if len(distractors) < 3:
                 continue
             options = self._shuffle_stable([answer, *distractors], sentence)
-            questions.append(
+            out.append(
                 QuizQuestion(
                     question=self._blank(sentence, answer),
                     options=options,
                     answer_index=options.index(answer),
                     explanation=sentence,
+                    topic=topic,
                 )
             )
-        return QuizResponse(
-            request_id=request.request_id,
-            questions=questions,
-            citations=citations,
-            grounded=bool(questions),
-        )
+        return out
 
     # ── retrieval ──
 
